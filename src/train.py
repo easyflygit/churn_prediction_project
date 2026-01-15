@@ -2,7 +2,7 @@ import os
 import json
 import joblib
 import numpy as np
-
+import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -82,6 +82,59 @@ def train_logistic_regression(X_train, X_test, y_train, y_test):
     return pipeline, y_proba
 
 # =========================
+# RANDOM FOREST (INSIGHTS)
+# =========================
+
+
+def train_random_forest(X_train, y_train, preprocessor):
+    print("\n=== Random Forest (Feature Importance) ===")
+
+    X_train_processed = preprocessor.fit_transform(X_train)
+    feature_names = preprocessor.get_feature_names_out()
+
+    rf = RandomForestClassifier(
+        n_estimators=200,
+        random_state=42,
+        n_jobs=-1,
+    )
+
+    rf.fit(X_train_processed, y_train)
+
+    importances = rf.feature_importances_
+    rf_importance = pd.DataFrame({
+        "feature": feature_names,
+        "importance": importances,
+    }).sort_values(by="importance", ascending=False)
+
+    rf_importance.to_csv(
+        f"{ARTIFACTS_DIR}/rf_feature_importance.csv", index=False
+    )
+
+    # ---- group importance ----
+    group_rows = []
+
+    for group, raw_features in GROUP_MAPPING.items():
+        mask = rf_importance["feature"].apply(
+            lambda x: any(raw in x for raw in raw_features)
+        )
+        group_importance = rf_importance.loc[mask, "importance"].sum()
+        group_rows.append(
+            {"group": group, "importance": group_importance}
+        )
+
+    group_df = (
+        pd.DataFrame(group_rows)
+        .sort_values(by="importance", ascending=False)
+    )
+
+    group_df.to_csv(
+        f"{ARTIFACTS_DIR}/rf_group_importance.csv", index=False
+    )
+
+    print(rf_importance.head(10))
+    print("\nSaved RF feature & group importance")
+
+# =========================
 # MAIN
 # =========================
 
@@ -101,6 +154,10 @@ def main():
     train_logistic_regression(
         X_train, X_test, y_train, y_test
     )
+
+    # Random Forest (insights only)
+    preprocessor = get_preprocessor()
+    train_random_forest(X_train, y_train, preprocessor)
 
 
 #
